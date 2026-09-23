@@ -17,6 +17,7 @@ public class RagService {
     private final EmbeddingService embeddingService;
     private final KnowledgeChunkRepository chunkRepository;
     private final GeminiService geminiService;
+    private final GroqService groqService;
     
     public String processQuery(String question) {
         // 1. Generate embedding for question
@@ -51,12 +52,24 @@ public class RagService {
         // 4. Build prompt
         String prompt = buildPrompt(question, context);
         
-        // 5. Call Gemini
+        // 5. Try Groq LLM first if configured (Ultra-fast, Llama 3)
+        if (groqService.isConfigured()) {
+            log.info("Groq is configured. Calling Groq LLM for answer generation...");
+            String groqAnswer = groqService.generateResponse(prompt);
+            if (groqAnswer != null && !groqAnswer.isBlank()) {
+                log.info("Successfully received answer from Groq LLM.");
+                return groqAnswer;
+            }
+            log.warn("Groq LLM returned null or failed. Falling back to Gemini...");
+        }
+        
+        // 6. Call Gemini LLM (Primary if Groq not set, or secondary fallback)
+        log.info("Calling Gemini LLM for answer generation...");
         String response = geminiService.generateResponse(prompt);
         
-        // 6. If Gemini failed but we have context, provide a basic fallback
+        // 7. If Gemini failed but we have context, provide a context-based fallback
         if (isGeminiFailureResponse(response) && !context.isBlank()) {
-            log.warn("Gemini response generation failed. Providing context-based fallback.");
+            log.warn("Both LLMs unavailable. Providing context-based fallback.");
             return "I'm having trouble connecting to the AI service right now, but here's what I found in the knowledge base:\n\n" 
                 + context.substring(0, Math.min(context.length(), 1000))
                 + "\n\nPlease try again in a moment for a more detailed answer.";
@@ -92,7 +105,8 @@ public class RagService {
         return response != null && (
             response.contains("temporarily unavailable") ||
             response.contains("encountered an error") ||
-            response.contains("invalid request")
+            response.contains("invalid request") ||
+            response.contains("not configured with an API key")
         );
     }
 
@@ -128,7 +142,7 @@ public class RagService {
     
     private String buildPrompt(String question, String context) {
         return """
-            You are OnboardAssist, an AI-powered onboarding assistant.
+            You are OnboardAssist, an AI-powered onboarding assistant for Cognizant employees.
             Answer the user's question using ONLY the provided context.
             If the context does not contain relevant information, respond with:
             "I couldn't find relevant information in the available onboarding knowledge base. Please contact your HR or onboarding coordinator for further assistance."
