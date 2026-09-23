@@ -3,11 +3,13 @@ package com.onboardassist.service;
 import com.onboardassist.entity.KnowledgeChunk;
 import com.onboardassist.repository.KnowledgeChunkRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RagService {
@@ -25,7 +27,13 @@ public class RagService {
         
         List<KnowledgeChunk> similarChunks;
         if (allChunks.isEmpty() || questionVector.length == 0) {
-            similarChunks = Collections.emptyList();
+            // Fallback: if embedding failed, try keyword-based search
+            if (questionVector.length == 0 && !allChunks.isEmpty()) {
+                log.warn("Embedding generation failed. Falling back to keyword search for: '{}'", question);
+                similarChunks = keywordFallbackSearch(question, allChunks);
+            } else {
+                similarChunks = Collections.emptyList();
+            }
         } else {
             similarChunks = allChunks.stream()
                 .map(chunk -> new AbstractMap.SimpleEntry<>(chunk, calculateCosineSimilarity(questionVector, parseEmbedding(chunk.getEmbedding()))))
@@ -44,7 +52,48 @@ public class RagService {
         String prompt = buildPrompt(question, context);
         
         // 5. Call Gemini
-        return geminiService.generateResponse(prompt);
+        String response = geminiService.generateResponse(prompt);
+        
+        // 6. If Gemini failed but we have context, provide a basic fallback
+        if (isGeminiFailureResponse(response) && !context.isBlank()) {
+            log.warn("Gemini response generation failed. Providing context-based fallback.");
+            return "I'm having trouble connecting to the AI service right now, but here's what I found in the knowledge base:\n\n" 
+                + context.substring(0, Math.min(context.length(), 1000))
+                + "\n\nPlease try again in a moment for a more detailed answer.";
+        }
+        
+        return response;
+    }
+
+    /**
+     * Simple keyword-based fallback when embedding generation fails.
+     * Searches chunk content for question keywords.
+     */
+    private List<KnowledgeChunk> keywordFallbackSearch(String question, List<KnowledgeChunk> allChunks) {
+        String[] keywords = question.toLowerCase().split("\\s+");
+        
+        return allChunks.stream()
+            .map(chunk -> {
+                String contentLower = chunk.getContent().toLowerCase();
+                long matchCount = Arrays.stream(keywords)
+                    .filter(kw -> kw.length() > 3) // skip short words like "the", "is", "a"
+                    .filter(contentLower::contains)
+                    .count();
+                return new AbstractMap.SimpleEntry<>(chunk, matchCount);
+            })
+            .filter(e -> e.getValue() > 0)
+            .sorted((e1, e2) -> Long.compare(e2.getValue(), e1.getValue()))
+            .limit(5)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+    }
+
+    private boolean isGeminiFailureResponse(String response) {
+        return response != null && (
+            response.contains("temporarily unavailable") ||
+            response.contains("encountered an error") ||
+            response.contains("invalid request")
+        );
     }
 
     private float[] parseEmbedding(String embeddingStr) {

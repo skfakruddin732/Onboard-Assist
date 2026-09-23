@@ -1,10 +1,15 @@
 package com.onboardassist.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+
+import java.time.Duration;
 import java.util.*;
 
+@Slf4j
 @Service
 public class GeminiService {
 
@@ -13,6 +18,12 @@ public class GeminiService {
 
     @Value("${gemini.chat.model}")
     private String chatModel;
+
+    @Value("${gemini.api.retry.max-attempts:3}")
+    private int maxRetryAttempts;
+
+    @Value("${gemini.api.retry.initial-delay-ms:1000}")
+    private long initialDelayMs;
 
     private final WebClient geminiWebClient;
 
@@ -28,24 +39,63 @@ public class GeminiService {
         contentMap.put("parts", List.of(partMap));
         body.put("contents", List.of(contentMap));
 
-        Map response;
+        Map response = null;
+        Exception lastException = null;
 
-try {
-    response = geminiWebClient.post()
-            .uri(uriBuilder -> uriBuilder
-                    .path("/v1beta/models/{model}:generateContent")
-                    .queryParam("key", apiKey)
-                    .build(chatModel))
-            .bodyValue(body)
-            .retrieve()
-            .bodyToMono(Map.class)
-            .block();
+        for (int attempt = 1; attempt <= maxRetryAttempts; attempt++) {
+            try {
+                log.info("Gemini generateContent attempt {}/{} using model '{}'", attempt, maxRetryAttempts, chatModel);
 
-} catch (Exception e) {
-    e.printStackTrace();
-    return "Gemini service is temporarily unavailable. Please try again later.";
-}
+                response = geminiWebClient.post()
+                        .uri(uriBuilder -> uriBuilder
+                                .path("/v1beta/models/{model}:generateContent")
+                                .queryParam("key", apiKey)
+                                .build(chatModel))
+                        .bodyValue(body)
+                        .retrieve()
+                        .bodyToMono(Map.class)
+                        .timeout(Duration.ofSeconds(30))
+                        .block();
 
+                // Success — break out of retry loop
+                log.info("Gemini generateContent succeeded on attempt {}", attempt);
+                break;
+
+            } catch (WebClientResponseException e) {
+                lastException = e;
+                int statusCode = e.getStatusCode().value();
+                log.warn("Gemini generateContent attempt {}/{} failed with HTTP {} — {}",
+                        attempt, maxRetryAttempts, statusCode, e.getStatusText());
+
+                if (statusCode == 503 || statusCode == 429 || statusCode == 500) {
+                    // Retryable error — wait with exponential backoff
+                    if (attempt < maxRetryAttempts) {
+                        long delayMs = initialDelayMs * (long) Math.pow(2, attempt - 1);
+                        log.info("Retrying in {}ms...", delayMs);
+                        sleep(delayMs);
+                    }
+                } else if (statusCode == 400) {
+                    log.error("Bad request to Gemini API (not retryable): {}", e.getResponseBodyAsString());
+                    return "Gemini service encountered an invalid request. Please try rephrasing your question.";
+                } else {
+                    log.error("Unexpected Gemini API error (HTTP {}): {}", statusCode, e.getResponseBodyAsString());
+                    return "Gemini service is temporarily unavailable. Please try again later.";
+                }
+
+            } catch (Exception e) {
+                lastException = e;
+                log.warn("Gemini generateContent attempt {}/{} failed with exception: {}",
+                        attempt, maxRetryAttempts, e.getMessage());
+
+                if (attempt < maxRetryAttempts) {
+                    long delayMs = initialDelayMs * (long) Math.pow(2, attempt - 1);
+                    log.info("Retrying in {}ms...", delayMs);
+                    sleep(delayMs);
+                }
+            }
+        }
+
+        // Parse successful response
         if (response != null && response.containsKey("candidates")) {
             List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.get("candidates");
             if (!candidates.isEmpty()) {
@@ -58,6 +108,20 @@ try {
                 }
             }
         }
-        return "Sorry, I couldn't generate a response.";
+
+        // All retries exhausted
+        if (lastException != null) {
+            log.error("Gemini generateContent failed after {} attempts. Last error: {}",
+                    maxRetryAttempts, lastException.getMessage());
+        }
+        return "Gemini service is temporarily unavailable. Please try again later.";
+    }
+
+    private void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
