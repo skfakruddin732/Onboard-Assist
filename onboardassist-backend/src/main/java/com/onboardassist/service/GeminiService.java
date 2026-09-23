@@ -28,15 +28,23 @@ public class GeminiService {
         contentMap.put("parts", List.of(partMap));
         body.put("contents", List.of(contentMap));
 
-        Map response = geminiWebClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/v1beta/models/{model}:generateContent")
-                        .queryParam("key", apiKey)
-                        .build(chatModel))
-                .bodyValue(body)
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block();
+        Map response;
+
+try {
+    response = geminiWebClient.post()
+            .uri(uriBuilder -> uriBuilder
+                    .path("/v1beta/models/{model}:generateContent")
+                    .queryParam("key", apiKey)
+                    .build(chatModel))
+            .bodyValue(body)
+            .retrieve()
+            .bodyToMono(Map.class)
+            .block();
+
+} catch (Exception e) {
+    e.printStackTrace();
+    return "Gemini service is temporarily unavailable. Please try again later.";
+}
 
         if (response != null && response.containsKey("candidates")) {
             List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.get("candidates");
