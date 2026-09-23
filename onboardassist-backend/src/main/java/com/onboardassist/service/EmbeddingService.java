@@ -31,15 +31,24 @@ public class EmbeddingService {
         contentMap.put("parts", List.of(partMap));
         body.put("content", contentMap);
 
-        Map response = geminiWebClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/v1beta/models/{model}:embedContent")
-                        .queryParam("key", apiKey)
-                        .build(embeddingModel))
-                .bodyValue(body)
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block();
+        Map response;
+
+try {
+    response = geminiWebClient.post()
+            .uri(uriBuilder -> uriBuilder
+                    .path("/v1beta/models/{model}:embedContent")
+                    .queryParam("key", apiKey)
+                    .build(embeddingModel))
+            .bodyValue(body)
+            .retrieve()
+            .bodyToMono(Map.class)
+            .block();
+
+} catch (Exception e) {
+    e.printStackTrace();
+    System.out.println("Embedding Error: " + e.getMessage());
+    return new float[0];
+}
 
         if (response != null && response.containsKey("embedding")) {
             Map<String, Object> embeddingNode = (Map<String, Object>) response.get("embedding");
