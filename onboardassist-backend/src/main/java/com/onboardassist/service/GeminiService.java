@@ -16,7 +16,7 @@ public class GeminiService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    @Value("${gemini.chat.model:gemini-1.5-flash}")
+    @Value("${gemini.chat.model:gemini-3.8-flash}")
     private String chatModel;
 
     @Value("${gemini.api.retry.max-attempts:2}")
@@ -29,10 +29,9 @@ public class GeminiService {
 
     // Supported candidate models to try as fallbacks
     private static final List<String> FALLBACK_MODELS = List.of(
-            "gemini-1.5-flash",
-            "gemini-1.5-flash-latest",
-            "gemini-2.0-flash",
-            "gemini-1.5-pro"
+            "gemini-3.8-flash",
+            "gemini-2.5-flash",
+            "gemini-1.5-flash"
     );
 
     public GeminiService(WebClient geminiWebClient) {
