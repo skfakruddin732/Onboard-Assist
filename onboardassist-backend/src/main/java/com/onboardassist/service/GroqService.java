@@ -18,17 +18,17 @@ public class GroqService {
     @Value("${groq.api.key:}")
     private String apiKey;
 
-    @Value("${groq.chat.model:llama-3.3-70b-versatile}")
+    @Value("${groq.chat.model:openai/gpt-oss-120b}")
     private String chatModel;
 
     @Value("${groq.api.base-url:https://api.groq.com/openai/v1}")
     private String baseUrl;
 
     private static final List<String> FALLBACK_MODELS = List.of(
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
             "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant",
-            "mixtral-8x7b-32768",
-            "gemma2-9b-it"
+            "llama-3.1-8b-instant"
     );
 
     public boolean isConfigured() {
@@ -111,7 +111,6 @@ public class GroqService {
                 log.warn("Groq request failed with model '{}': {}", model, e.getMessage());
             }
         }
-
         log.error("All Groq model attempts failed.");
         return null;
     }
