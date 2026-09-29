@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -26,8 +26,11 @@ export class HomeComponent implements OnInit {
     { icon: 'fas fa-laptop', title: 'Learning Portal', description: 'Access your learning portal and courses' }
   ];
 
-  constructor(private router: Router, private authService: AuthService) {}
-
+constructor(
+  private router: Router,
+  private authService: AuthService,
+  private ngZone: NgZone
+) {}
   ngOnInit(): void {
     const user = this.authService.getCurrentUser();
     this.userName = user?.name || 'there';
@@ -35,26 +38,71 @@ export class HomeComponent implements OnInit {
   }
 
   initSpeechRecognition(): void {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      this.speechRecognition = new SpeechRecognition();
-      this.speechRecognition.continuous = false;
-      this.speechRecognition.interimResults = false;
-      this.speechRecognition.lang = 'en-US';
-      this.speechRecognition.onresult = (event: any) => {
-        this.question = event.results[0][0].transcript;
+  const SpeechRecognition =
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition;
+
+  if (SpeechRecognition) {
+
+    this.speechRecognition = new SpeechRecognition();
+
+    this.speechRecognition.continuous = false;
+    this.speechRecognition.interimResults = false;
+    this.speechRecognition.lang = 'en-US';
+
+    this.speechRecognition.onresult = (event: any) => {
+  console.log(
+    'Recognized:',
+    event.results[0][0].transcript
+  );
+  this.ngZone.run(() => {
+    this.question += ' ' + event.results[0][0].transcript;
+    this.question = this.question.trim();
+    this.isListening = false;
+  });
+
+};
+
+    this.speechRecognition.onerror = (event: any) => {
+      console.log('Speech Error:', event.error);
+      this.ngZone.run(() => {
         this.isListening = false;
-      };
-      this.speechRecognition.onerror = () => { this.isListening = false; };
-      this.speechRecognition.onend = () => { this.isListening = false; };
-    }
+      });
+    };
+
+    this.speechRecognition.onend = () => {
+
+      console.log('Speech Recognition Ended');
+
+      this.ngZone.run(() => {
+        this.isListening = false;
+      });
+
+    };
   }
+}
 
   toggleVoice(): void {
-    if (!this.speechRecognition) { alert('Speech recognition not supported in this browser.'); return; }
-    if (this.isListening) { this.speechRecognition.stop(); this.isListening = false; }
-    else { this.speechRecognition.start(); this.isListening = true; }
+
+  if (!this.speechRecognition) {
+    alert('Speech recognition not supported in this browser.');
+    return;
   }
+  if (this.isListening) {
+
+    this.speechRecognition.stop();
+    this.isListening = false;
+  } else {
+    this.question = '';
+    try {
+      this.speechRecognition.abort();
+    } catch (e) {}
+    setTimeout(() => {
+      this.speechRecognition.start();
+      this.isListening = true;
+    }, 100);
+  }
+}
 
   askQuestion(): void {
     if (!this.question.trim()) return;
