@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewChecked, ElementRef, ViewChild } from '@angular/core';
+import { Component, OnInit, AfterViewChecked, ElementRef, ViewChild, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -23,13 +23,14 @@ export class ChatComponent implements OnInit, AfterViewChecked {
   isListening = false;
   speechRecognition: any;
 
-  constructor(
-    private router: Router,
-    private authService: AuthService,
-    private chatService: ChatService
-  ) {
-    this.sessionId = 'session-' + Math.random().toString(36).substr(2, 9);
-  }
+ constructor(
+  private router: Router,
+  private authService: AuthService,
+  private chatService: ChatService,
+  private ngZone: NgZone
+) {
+  this.sessionId = 'session-' + Math.random().toString(36).substr(2, 9);
+}
 
   ngOnInit(): void {
     const state = history.state;
@@ -52,19 +53,42 @@ export class ChatComponent implements OnInit, AfterViewChecked {
       this.speechRecognition.interimResults = false;
       this.speechRecognition.lang = 'en-US';
       this.speechRecognition.onresult = (event: any) => {
-        this.currentQuestion = event.results[0][0].transcript;
-        this.isListening = false;
-      };
+  this.ngZone.run(() => {
+    this.currentQuestion = event.results[0][0].transcript;
+    this.isListening = false;
+  });
+};
       this.speechRecognition.onerror = () => { this.isListening = false; };
-      this.speechRecognition.onend = () => { this.isListening = false; };
+      this.speechRecognition.onend = () => {
+  this.ngZone.run(() => {
+    this.isListening = false;
+  });
+};
     }
   }
 
   toggleVoice(): void {
-    if (!this.speechRecognition) return;
-    if (this.isListening) { this.speechRecognition.stop(); this.isListening = false; }
-    else { this.speechRecognition.start(); this.isListening = true; }
+  if (!this.speechRecognition) {
+    alert('Speech Recognition is not supported in this browser.');
+    return;
   }
+
+  if (this.isListening) {
+    this.speechRecognition.stop();
+    this.isListening = false;
+  } else {
+    this.currentQuestion = '';
+
+    try {
+      this.speechRecognition.abort();
+    } catch (e) {}
+
+    setTimeout(() => {
+      this.speechRecognition.start();
+      this.isListening = true;
+    }, 100);
+  }
+}
 
   sendMessage(): void {
     if (!this.currentQuestion.trim() || this.isLoading) return;

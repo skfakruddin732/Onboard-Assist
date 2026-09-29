@@ -7,69 +7,178 @@
       <h1>OnboardAssist</h1>
       <p class="brand-subtitle">AI-Powered Onboarding Assistant</p>
     </div>
+
     <div class="features">
       <div class="feature-item">
         <i class="fas fa-robot"></i>
         <span>AI-Powered Responses</span>
       </div>
+
       <div class="feature-item">
         <i class="fas fa-search"></i>
         <span>Smart Knowledge Search</span>
       </div>
+
       <div class="feature-item">
         <i class="fas fa-microphone"></i>
         <span>Voice Input Support</span>
       </div>
+
       <div class="feature-item">
         <i class="fas fa-comments"></i>
         <span>Conversational Interface</span>
       </div>
     </div>
   </div>
+
   <div class="auth-right">
     <div class="auth-card">
+
       <h2>{{ isRegisterMode ? 'Create Account' : 'Welcome Back' }}</h2>
-      <p class="auth-subtitle">{{ isRegisterMode ? 'Register to access OnboardAssist' : 'Sign in to your account' }}</p>
+
+      <p class="auth-subtitle">
+        {{
+          isRegisterMode
+            ? 'Register to access OnboardAssist'
+            : 'Sign in to your account'
+        }}
+      </p>
 
       <div *ngIf="errorMessage" class="error-alert">
-        <i class="fas fa-exclamation-circle"></i> {{ errorMessage }}
+        <i class="fas fa-exclamation-circle"></i>
+        {{ errorMessage }}
       </div>
 
-      <form (ngSubmit)="onSubmit()" #authForm="ngForm">
+      <form (ngSubmit)="onSubmit()">
+
+        <!-- Full Name -->
         <div *ngIf="isRegisterMode" class="form-group">
-          <label for="name"><i class="fas fa-user"></i> Full Name</label>
-          <input type="text" id="name" [(ngModel)]="registerData.name" name="name" placeholder="Enter your full name" required>
+
+          <label>
+            <i class="fas fa-user"></i> Full Name
+          </label>
+
+          <input
+            type="text"
+            [(ngModel)]="registerData.name"
+            name="name"
+            placeholder="Enter your full name">
+
+          <small
+            class="error-text"
+            *ngIf="showNameError">
+
+            Full Name is required
+
+          </small>
+
         </div>
+
+        <!-- Email -->
         <div class="form-group">
-          <label for="email"><i class="fas fa-envelope"></i> Email Address</label>
-          <input *ngIf="!isRegisterMode" type="email" id="email-login"
+
+          <label>
+            <i class="fas fa-envelope"></i> Email Address
+          </label>
+
+          <!-- Login Email -->
+          <input
+            *ngIf="!isRegisterMode"
+            type="email"
             [(ngModel)]="loginData.email"
-            name="email" placeholder="Enter your email" required>
-          <input *ngIf="isRegisterMode" type="email" id="email-register"
+            name="email"
+            placeholder="Enter your email">
+
+          <!-- Register Email -->
+          <input
+            *ngIf="isRegisterMode"
+            type="email"
             [(ngModel)]="registerData.email"
-            name="regEmail" placeholder="Enter your email" required>
+            name="regEmail"
+            placeholder="Enter your email">
+
+          <small
+            class="error-text"
+            *ngIf="showEmailError">
+
+            {{ emailErrorMessage }}
+
+          </small>
+
         </div>
+
+        <!-- Password -->
         <div class="form-group">
-          <label for="password"><i class="fas fa-lock"></i> Password</label>
-          <input *ngIf="!isRegisterMode" type="password" id="password-login"
+
+          <label>
+            <i class="fas fa-lock"></i> Password
+          </label>
+
+          <!-- Login Password -->
+          <input
+            *ngIf="!isRegisterMode"
+            type="password"
             [(ngModel)]="loginData.password"
-            name="password" placeholder="Enter your password" required>
-          <input *ngIf="isRegisterMode" type="password" id="password-register"
+            name="password"
+            placeholder="Enter your password">
+
+          <!-- Register Password -->
+          <input
+            *ngIf="isRegisterMode"
+            type="password"
             [(ngModel)]="registerData.password"
-            name="regPassword" placeholder="Enter your password (min 6 chars)" required minlength="6">
+            name="regPassword"
+            placeholder="Enter your password">
+
+          <small
+            class="error-text"
+            *ngIf="showPasswordError">
+
+            {{ passwordErrorMessage }}
+
+          </small>
+
         </div>
-        <button type="submit" class="btn-submit" [disabled]="isLoading || authForm.invalid">
-          <span *ngIf="!isLoading">{{ isRegisterMode ? 'Create Account' : 'Sign In' }}</span>
-          <span *ngIf="isLoading"><i class="fas fa-spinner fa-spin"></i> Please wait...</span>
+
+        <!-- Submit Button -->
+        <button
+          type="submit"
+          class="btn-submit"
+          [disabled]="isLoading">
+
+          <span *ngIf="!isLoading">
+            {{ isRegisterMode ? 'Create Account' : 'Sign In' }}
+          </span>
+
+          <span *ngIf="isLoading">
+            <i class="fas fa-spinner fa-spin"></i>
+            Please wait...
+          </span>
+
         </button>
+
       </form>
 
+      <!-- Toggle Login/Register -->
       <div class="auth-toggle">
-        {{ isRegisterMode ? 'Already have an account?' : "Don't have an account?" }}
-        <button class="toggle-btn" (click)="toggleMode()">
+
+        {{
+          isRegisterMode
+            ? 'Already have an account?'
+            : "Don't have an account?"
+        }}
+
+        <button
+          type="button"
+          class="toggle-btn"
+          (click)="toggleMode()">
+
           {{ isRegisterMode ? 'Sign In' : 'Register' }}
+
         </button>
+
       </div>
+
     </div>
   </div>
 </div>
